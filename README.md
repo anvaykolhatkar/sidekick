@@ -22,6 +22,8 @@ A personal co-worker agent. Give it a task and a definition of success, and it w
 - **Tools:** Serper search, Wikipedia, Pushover, and Playwright and filesystem MCP servers held open in persistent sessions.
 - **UI:** a Gradio chat with a live plan panel and an Approve button that appears when the Sidekick pauses for you.
 
+For the full design, including data flows, security and known limits, see [docs/architecture.md](docs/architecture.md).
+
 | File | Purpose |
 | --- | --- |
 | `app.py` | Gradio UI and entry point |
