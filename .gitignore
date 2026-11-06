@@ -1,0 +1,24 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# What the Sidekick produces at runtime
+sandbox/
+.playwright-mcp/
+.gradio/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,9 @@
+{
+  "name": "sidekick-mcp-servers",
+  "private": true,
+  "description": "The MCP servers the Sidekick launches. Pinned here so every environment runs the same versions.",
+  "dependencies": {
+    "@modelcontextprotocol/server-filesystem": "2.2.0",
+    "@playwright/mcp": "0.0.84"
+  }
+}

@@ -1,0 +1,15 @@
+.env
+.env.*
+.git
+.gitignore
+.venv
+.pytest_cache
+.playwright-mcp
+.gradio
+.vscode
+__pycache__
+*.pyc
+node_modules
+sandbox
+tests
+docker-compose.yml

@@ -1,0 +1,10 @@
+services:
+  sidekick:
+    build: .
+    env_file: .env
+    # Published on this machine only. Set SIDEKICK_USERNAME and SIDEKICK_PASSWORD before widening this.
+    ports:
+      - "127.0.0.1:7860:7860"
+    volumes:
+      - ./sandbox:/app/sandbox
+    init: true
