@@ -14,7 +14,7 @@ Plain Python controls the loop between them, so the rules for retrying and stopp
 | Decision | Choice |
 | --- | --- |
 | Agent framework | LangChain `create_agent`, which runs on LangGraph |
-| Model | OpenAI `gpt-5.4-mini` for both roles |
+| Model | `z-ai/glm-5.3-flash` through OpenRouter for both roles |
 | Control flow | A hand-written evaluator loop around the agent |
 | Browser and filesystem | MCP servers over stdio, held open in persistent sessions |
 | UI | Gradio |

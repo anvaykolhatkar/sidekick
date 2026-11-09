@@ -38,7 +38,7 @@ Copy `.env.example` to `.env` and fill it in. Never commit `.env`; it is ignored
 
 | Setting | Required | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | Yes | The worker and evaluator models |
+| `OPENROUTER_API_KEY` | Yes | The worker and evaluator models |
 | `SERPER_API_KEY` | Yes | Web search |
 | `PUSHOVER_TOKEN`, `PUSHOVER_USER` | No | Push notifications |
 | `SIDEKICK_USERNAME`, `SIDEKICK_PASSWORD` | On Spaces | Login for the UI |
@@ -69,7 +69,7 @@ Open <http://127.0.0.1:7860>. Files the Sidekick writes appear in `./sandbox` on
 ## Deploy to Hugging Face Spaces
 
 1. Create a new Space at <https://huggingface.co/new-space> and choose **Docker** as the SDK. **Private** is the safer choice.
-2. In the Space's **Settings > Variables and secrets**, add `OPENAI_API_KEY`, `SERPER_API_KEY`, `SIDEKICK_USERNAME` and `SIDEKICK_PASSWORD` as secrets, plus the Pushover keys if you use them.
+2. In the Space's **Settings > Variables and secrets**, add `OPENROUTER_API_KEY`, `SERPER_API_KEY`, `SIDEKICK_USERNAME` and `SIDEKICK_PASSWORD` as secrets, plus the Pushover keys if you use them.
 3. Push this repository to the Space, using a Hugging Face access token with write permission as the password:
 
    ```

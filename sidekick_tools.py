@@ -20,7 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Containers have no display, so the browser runs headless and nobody can step in to help it
 HEADLESS = os.getenv("SIDEKICK_HEADLESS", "").strip().lower() in ("1", "true", "yes")
 
-missing = [key for key in ("OPENAI_API_KEY", "SERPER_API_KEY") if not os.getenv(key)]
+missing = [key for key in ("OPENROUTER_API_KEY", "SERPER_API_KEY") if not os.getenv(key)]
 if missing:
     raise SystemExit(f"Missing required settings: {', '.join(missing)}. See .env.example.")
 

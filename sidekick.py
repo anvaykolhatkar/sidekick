@@ -36,6 +36,12 @@ load_dotenv(override=True)
 HERE = os.path.dirname(os.path.abspath(__file__))
 SANDBOX = os.path.join(HERE, "sandbox")
 MAX_ATTEMPTS = 3
+MODEL = "z-ai/glm-5.3-flash"
+OPENROUTER_URL = "https://openrouter.ai/api/v1"
+
+
+def openrouter_model() -> ChatOpenAI:
+    return ChatOpenAI(model=MODEL, base_url=OPENROUTER_URL, api_key=os.environ["OPENROUTER_API_KEY"])
 
 
 class EvaluatorOutput(BaseModel):
@@ -133,7 +139,7 @@ class Sidekick:
             return f"{worker_prompt}\nThe current date and time is {datetime.now().astimezone():%A %d %B %Y, %H:%M %Z}."
 
         self.worker = create_agent(
-            model="openai:gpt-5.4-mini",
+            model=openrouter_model(),
             tools=self.tools,
             middleware=[
                 prompt_with_current_time,  # first, so the middleware below can add to this prompt
@@ -147,7 +153,7 @@ class Sidekick:
             ],
             checkpointer=self.memory,
         )
-        self.evaluator = ChatOpenAI(model="gpt-5.4-mini").with_structured_output(EvaluatorOutput)
+        self.evaluator = openrouter_model().with_structured_output(EvaluatorOutput)
 
     async def evaluate(
         self, message: str, success_criteria: str, last_reply: str, tools_used: list[str]
