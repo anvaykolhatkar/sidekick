@@ -7,6 +7,7 @@ worker a plan it shares with the UI, guardrails for PII and runaway costs, and a
 for human approval before sensitive actions.
 """
 
+import asyncio
 import os
 import uuid
 from datetime import datetime
@@ -21,9 +22,11 @@ from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     PIIMiddleware,
     TodoListMiddleware,
+    dynamic_prompt,
 )
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.types import Command
 
 from sidekick_tools import HEADLESS, get_all_tools
@@ -77,6 +80,31 @@ class TolerateToolErrors(AgentMiddleware):
             )
 
 
+class AnswerDanglingToolCalls(AgentMiddleware):
+    """Close off tool calls that never got a result, so the model API accepts the history.
+    They are left behind when the user sends a new message instead of approving a paused
+    action, or when a run is cancelled partway through a tool. The tool itself is not run."""
+
+    def before_agent(self, state, runtime):
+        messages = state["messages"]
+        answered = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
+        repaired = []
+        for message in messages:
+            repaired.append(message)
+            if isinstance(message, AIMessage):
+                repaired += [
+                    ToolMessage(
+                        content="This tool call was not run: the user moved on before it completed.",
+                        tool_call_id=call["id"],
+                    )
+                    for call in message.tool_calls
+                    if call["id"] not in answered
+                ]
+        if len(repaired) == len(messages):
+            return None
+        return {"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), *repaired]}
+
+
 class Sidekick:
     def __init__(self):
         self.sidekick_id = str(uuid.uuid4())
@@ -99,11 +127,17 @@ class Sidekick:
         interrupt_on = {"send_push_notification": True}
         if not HEADLESS:
             interrupt_on["request_human_help"] = True
+
+        @dynamic_prompt
+        def prompt_with_current_time(request):
+            return f"{worker_prompt}\nThe current date and time is {datetime.now().astimezone():%A %d %B %Y, %H:%M %Z}."
+
         self.worker = create_agent(
             model="openai:gpt-5.4-mini",
             tools=self.tools,
-            system_prompt=f"{worker_prompt}\nToday is {datetime.now():%A %d %B %Y}.",
             middleware=[
+                prompt_with_current_time,  # first, so the middleware below can add to this prompt
+                AnswerDanglingToolCalls(),
                 TolerateToolErrors(),
                 TodoListMiddleware(),
                 PIIMiddleware("email"),
@@ -162,39 +196,56 @@ needs clarification, or seems stuck. Give brief, concrete feedback."""
 
     async def _advance(self, payload, history: list) -> list:
         config = {"configurable": {"thread_id": self.sidekick_id}}
-        while True:
-            result = None
-            async for result in self.worker.astream(payload, config=config, stream_mode="values"):
-                self.todos = result.get("todos", self.todos)
+        keep_browser = False  # only while the user still has to act on this task
+        try:
+            while True:
+                result = None
+                async for result in self.worker.astream(payload, config=config, stream_mode="values"):
+                    self.todos = result.get("todos", self.todos)
 
-            if "__interrupt__" in result:
-                actions = result["__interrupt__"][0].value["action_requests"]
-                self.paused = True
-                self.pending_actions = len(actions)
-                described = "\n".join(action["description"] for action in actions)
-                return history + [{"role": "assistant", "content": f"Waiting for your approval:\n{described}"}]
+                if "__interrupt__" in result:
+                    actions = result["__interrupt__"][0].value["action_requests"]
+                    self.paused = True
+                    self.pending_actions = len(actions)
+                    keep_browser = True
+                    described = "\n".join(action["description"] for action in actions)
+                    return history + [{"role": "assistant", "content": f"Waiting for your approval:\n{described}"}]
 
-            self.paused = False
-            reply = result["messages"][-1].content
-            tools_used = [
-                call["name"] for m in result["messages"] for call in (getattr(m, "tool_calls", None) or [])
-            ]
-            self.attempts += 1
-            verdict = await self.evaluate(self.task, self.success_criteria, reply, tools_used)
-            if verdict.success_criteria_met or verdict.user_input_needed or self.attempts >= MAX_ATTEMPTS:
-                return history + [
-                    {"role": "assistant", "content": reply},
-                    {"role": "assistant", "content": f"Evaluator: {verdict.feedback}"},
+                self.paused = False
+                reply = result["messages"][-1].content
+                tools_used = [
+                    call["name"] for m in result["messages"] for call in (getattr(m, "tool_calls", None) or [])
                 ]
-            payload = {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": f"Your last response did not meet the success criteria. "
-                        f"Here is the feedback: {verdict.feedback}. Please keep working and address it.",
-                    }
-                ]
-            }
+                self.attempts += 1
+                verdict = await self.evaluate(self.task, self.success_criteria, reply, tools_used)
+                if verdict.success_criteria_met or verdict.user_input_needed or self.attempts >= MAX_ATTEMPTS:
+                    keep_browser = verdict.user_input_needed and not verdict.success_criteria_met
+                    return history + [
+                        {"role": "assistant", "content": reply},
+                        {"role": "assistant", "content": f"Evaluator: {verdict.feedback}"},
+                    ]
+                payload = {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": f"Your last response did not meet the success criteria. "
+                            f"Here is the feedback: {verdict.feedback}. Please keep working and address it.",
+                        }
+                    ]
+                }
+        finally:
+            if not keep_browser:
+                await self._close_browser()
+
+    async def _close_browser(self):
+        """Close the browser window at the end of a task. The MCP server stays up, and the
+        next browser tool call opens a fresh window."""
+        browser_close = next((tool for tool in self.tools if tool.name == "browser_close"), None)
+        if browser_close:
+            try:
+                await asyncio.wait_for(browser_close.ainvoke({}), timeout=10)
+            except Exception:
+                pass  # the task's result matters more than a tidy close, and cleanup() still ends it
 
     def cleanup(self):
         """Shut down the MCP servers; the browser window closes."""

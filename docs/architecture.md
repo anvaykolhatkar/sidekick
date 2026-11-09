@@ -180,8 +180,8 @@ The servers are pinned in `package-lock.json` and started with `npx --no-install
 | --- | --- | --- |
 | Agent messages, plan, paused runs | `InMemorySaver`, keyed by a per-Sidekick thread ID | Until Reset, session expiry or restart |
 | Chat history for display | Gradio Chatbot component | Browser session |
-| Sidekick instance and MCP sessions | `gr.State`, one per browser session | Until Reset or until Gradio expires the session |
-| Browser profile | In memory (`--isolated`) | Until the MCP session closes |
+| Sidekick instance and MCP sessions | `gr.State`, one per browser session | Until Reset, or until the tab is closed or refreshed |
+| Browser window and profile | In memory (`--isolated`) | Until the task ends; kept open while the Sidekick waits on the user |
 | Files | `sandbox/` | Disk: permanent natively, mounted from the host in Compose, wiped on restart on Spaces |
 
 The plan panel updates from a one-second timer that reads `sidekick.todos`. The timer is the panel's only writer, because Gradio would otherwise lock the panel while the long-running task event is in progress.

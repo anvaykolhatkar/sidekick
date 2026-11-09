@@ -19,6 +19,8 @@ HEADER = """
 </div>
 """
 
+open_sidekicks = {}  # each open tab's Sidekick, by Gradio session
+
 
 def login():
     """The login for the UI, if one is set. A Hugging Face Space is reachable from the internet
@@ -49,9 +51,10 @@ def render_todos(todos):
     return f"<h3>Plan</h3>{items}"
 
 
-async def setup():
+async def setup(request: gr.Request):
     sidekick = Sidekick()
     await sidekick.setup()
+    open_sidekicks[request.session_hash] = sidekick
     return sidekick, gr.update(interactive=True)
 
 
@@ -74,17 +77,24 @@ def watch_todos(sidekick):
     return render_todos(sidekick.todos) if sidekick else render_todos([])
 
 
-async def reset(sidekick):
+async def reset(sidekick, request: gr.Request):
     if sidekick:
         sidekick.cleanup()
     new_sidekick = Sidekick()
     await new_sidekick.setup()
+    open_sidekicks[request.session_hash] = new_sidekick
     return "", "", None, approve_button_update(False), new_sidekick
 
 
 def free_resources(sidekick):
     if sidekick:
         sidekick.cleanup()
+
+
+def tab_closed(request: gr.Request):
+    """Shut down as soon as a tab is closed or refreshed. Gradio only deletes a closed
+    session's State an hour later, which would leave the browser open all that time."""
+    free_resources(open_sidekicks.pop(request.session_hash, None))
 
 
 with gr.Blocks(title="Sidekick") as ui:
@@ -108,6 +118,7 @@ with gr.Blocks(title="Sidekick") as ui:
     timer = gr.Timer(1)
 
     ui.load(setup, [], [sidekick, go_button])
+    ui.unload(tab_closed)
     timer.tick(watch_todos, [sidekick], [todos_panel], show_progress="hidden")
     message.submit(process_message, [sidekick, message, success_criteria, chatbot],
                    [chatbot, approve_button, sidekick])

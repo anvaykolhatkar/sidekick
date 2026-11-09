@@ -89,6 +89,7 @@ class McpSessions:
         self._ready = asyncio.Event()
         self._stop = asyncio.Event()
         self._task = None
+        self._loop = None
 
     async def _run(self):
         client = MultiServerMCPClient(self.connections)
@@ -100,6 +101,7 @@ class McpSessions:
             await self._stop.wait()
 
     async def start(self) -> list:
+        self._loop = asyncio.get_running_loop()
         self._task = asyncio.create_task(self._run())
         ready = asyncio.create_task(self._ready.wait())
         await asyncio.wait([ready, self._task], return_when=asyncio.FIRST_COMPLETED)
@@ -109,7 +111,9 @@ class McpSessions:
         return self.tools
 
     def stop(self):
-        self._stop.set()
+        """Safe to call more than once, and from any thread: Gradio runs cleanup in worker threads."""
+        if self._loop and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(self._stop.set)
 
 
 def our_tools(headless: bool = HEADLESS) -> list:
